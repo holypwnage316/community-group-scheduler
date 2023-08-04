@@ -1,0 +1,25 @@
+{
+    "groupMembers": [
+        {
+            "familyUnit": "Skywalker",
+            "firstName": "Padme",
+            "gender": "female",
+            "ageGroup": "adult",
+            "datesUnavailable": ["01/01/2023"]
+        },
+        {
+            "familyUnit": "Skywalker",
+            "firstName": "Anakin",
+            "gender": "male",
+            "ageGroup": "adult",
+            "datesUnavailable": ["01/01/2023", "06/01/2023"]
+        },
+        {
+            "familyUnit": "Windu",
+            "firstName": "Mace",
+            "gender": "male",
+            "ageGroup": "adult",
+            "datesUnavailable": []
+        }
+    ]
+}
