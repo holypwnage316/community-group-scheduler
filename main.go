@@ -49,8 +49,8 @@ func parseCommunityGroupMembers(fileName string) (group.CommunityGroupMembers, e
 	return groupMembers, nil
 }
 
-func createSchedule(startDate string, endDate string, groupMembers group.CommunityGroupMembers) string {
-	var pair []string
+func createSchedule(startDate string, endDate string, groupMembers group.CommunityGroupMembers) (string, error) {
+	var pair []group.Member
 	var scheduleItems []ScheduleItem
 
 	// Convert startDate to a time type and intialize our currentDate to track through the algorithm
@@ -70,34 +70,55 @@ func createSchedule(startDate string, endDate string, groupMembers group.Communi
 			groupMembers.Members[i], groupMembers.Members[j] = groupMembers.Members[j], groupMembers.Members[i]
 		})
 
-		for _, member := range groupMembers.Members {
+		for i, member := range groupMembers.Members {
+			// If there isn't a current pair schedule this member
 			if len(pair) < 1 {
-				pair = append(pair, member.FirstName)
+				groupMembers.Members[i].TimesScheduled += 1
+				pair = append(pair, member)
 				continue
 			}
 
-			///////// algorithm here
+			// Find a second pair member thru the algorithm
+			secondPairMember, err := groupMembers.FindSecondPairMember(pair[0])
+			if err != nil {
+				fmt.Print("Errored\n")
+				// for _, member := range groupMembers.Members {
+				// 	fmt.Print(member.FirstName, " scheduled: ", member.TimesScheduled, "\n")
+				// }
+				// Reset everyone 'times scheduled' back to zero and try again
+				group.ResetTimesScheduled(&groupMembers)
 
-			pair = append(pair, member.FirstName)
+				secondPairMember, err = groupMembers.FindSecondPairMember(pair[0])
+				if err != nil {
+					return "", err
+				}
+			}
+
+			pair = append(pair, secondPairMember)
 
 			// Save the schedule item into the schedule
-			scheduleItem.Pair = pair[0] + ", " + pair[1]
+			scheduleItem.Pair = pair[0].FirstName + ", " + pair[1].FirstName
 			scheduleItems = append(scheduleItems, scheduleItem)
 
 			// Move to the next date 7 days out
 			currentDate = currentDate.AddDate(0, 0, 7)
 
 			// Reinitialize the pair
-			pair = make([]string, 0)
+			pair = make([]group.Member, 0)
 
 			// Initialize the next schedule item
 			scheduleItem.Date = usaDateFormat(currentDate)
 			scheduleItem.Pair = ""
 
+			break
 		}
 	}
 
-	return createPrintableSchedule(scheduleItems)
+	for _, member := range groupMembers.Members {
+		fmt.Print(member.FirstName, " scheduled: ", member.TimesScheduled, "\n")
+	}
+
+	return createPrintableSchedule(scheduleItems), nil
 }
 
 // usaDateFormat returns a date type into a standard USA date format MM/DD/YYYY
