@@ -6,6 +6,7 @@ import (
 	"io"
 	"math/rand"
 	"os"
+	"strconv"
 	"time"
 
 	"communitygroupscheduler/group"
@@ -13,8 +14,8 @@ import (
 
 const (
 	FileName  = "groupInfo.json"
-	StartDate = "09/01/2023"
-	EndDate   = "12/01/2023"
+	StartDate = "08/14/2023"
+	EndDate   = "12/05/2023"
 )
 
 type ScheduleItem struct {
@@ -25,11 +26,16 @@ type ScheduleItem struct {
 func main() {
 	communityGroupMembers, err := parseCommunityGroupMembers(FileName)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println(err.Error())
 	}
 
-	fmt.Printf("Scheduling %d community group members to lead the kids...\n\n", len(communityGroupMembers.Members))
-	fmt.Print(createSchedule(StartDate, EndDate, communityGroupMembers))
+	fmt.Println("Scheduling " + strconv.Itoa(len(communityGroupMembers.Members)) + " community group members to lead the kids...")
+
+	schedule, err := createSchedule(StartDate, EndDate, communityGroupMembers)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Println("\n" + schedule)
 }
 
 // parseCommunityGroupMembers opens a JSON file and parses the group members out of it
@@ -49,6 +55,7 @@ func parseCommunityGroupMembers(fileName string) (group.CommunityGroupMembers, e
 	return groupMembers, nil
 }
 
+// createSchedule is the main function creating the leading the kids schedule
 func createSchedule(startDate string, endDate string, groupMembers group.CommunityGroupMembers) (string, error) {
 	var pair []group.Member
 	var scheduleItems []ScheduleItem
@@ -70,60 +77,39 @@ func createSchedule(startDate string, endDate string, groupMembers group.Communi
 			groupMembers.Members[i], groupMembers.Members[j] = groupMembers.Members[j], groupMembers.Members[i]
 		})
 
-		for i, member := range groupMembers.Members {
-			// If there isn't a current pair schedule this member
-			if len(pair) < 1 {
-				groupMembers.Members[i].TimesScheduled += 1
-				pair = append(pair, member)
-				continue
-			}
-
-			// Find a second pair member thru the algorithm
-			secondPairMember, err := groupMembers.FindSecondPairMember(pair[0])
+		if len(pair) < 1 {
+			pairMember, err := groupMembers.FindPairMember(group.Member{}, currentDate)
 			if err != nil {
-				fmt.Print("Errored\n")
-				// for _, member := range groupMembers.Members {
-				// 	fmt.Print(member.FirstName, " scheduled: ", member.TimesScheduled, "\n")
-				// }
-				// Reset everyone 'times scheduled' back to zero and try again
-				group.ResetTimesScheduled(&groupMembers)
-
-				secondPairMember, err = groupMembers.FindSecondPairMember(pair[0])
-				if err != nil {
-					return "", err
-				}
+				fmt.Println("Failed to find first member of a pair")
 			}
-
-			pair = append(pair, secondPairMember)
-
-			// Save the schedule item into the schedule
-			scheduleItem.Pair = pair[0].FirstName + ", " + pair[1].FirstName
-			scheduleItems = append(scheduleItems, scheduleItem)
-
-			// Move to the next date 7 days out
-			currentDate = currentDate.AddDate(0, 0, 7)
-
-			// Reinitialize the pair
-			pair = make([]group.Member, 0)
-
-			// Initialize the next schedule item
-			scheduleItem.Date = usaDateFormat(currentDate)
-			scheduleItem.Pair = ""
-
-			break
+			pair = append(pair, pairMember)
+			continue
 		}
-	}
 
-	for _, member := range groupMembers.Members {
-		fmt.Print(member.FirstName, " scheduled: ", member.TimesScheduled, "\n")
+		// Find a second pair member thru the algorithm
+		secondPairMember, err := groupMembers.FindPairMember(pair[0], currentDate)
+		if err != nil {
+			fmt.Println("Failed to find second member of a pair")
+		}
+
+		pair = append(pair, secondPairMember)
+
+		// Save the schedule item into the schedule
+		scheduleItem.Pair = pair[0].FirstName + ", " + pair[1].FirstName
+		scheduleItems = append(scheduleItems, scheduleItem)
+
+		// Move to the next date 14 days out
+		currentDate = currentDate.AddDate(0, 0, 14)
+
+		// Reinitialize the pair
+		pair = make([]group.Member, 0)
+
+		// Initialize the next schedule item
+		scheduleItem.Date = group.UsaDateFormat(currentDate)
+		scheduleItem.Pair = ""
 	}
 
 	return createPrintableSchedule(scheduleItems), nil
-}
-
-// usaDateFormat returns a date type into a standard USA date format MM/DD/YYYY
-func usaDateFormat(date time.Time) string {
-	return date.Format("01/02/2006")
 }
 
 // createPrintableSchedule creates a printable schedule like: date - name, name

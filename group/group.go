@@ -1,6 +1,9 @@
 package group
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type CommunityGroupMembers struct {
 	Members []Member `json:"groupmembers"`
@@ -15,42 +18,56 @@ type Member struct {
 	TimesScheduled   int
 }
 
-func (g *CommunityGroupMembers) FindSecondPairMember(firstPairMember Member) (Member, error) {
+func (g *CommunityGroupMembers) FindPairMember(firstPairMember Member, currentDate time.Time) (Member, error) {
 	isFirstMemberTeenager := isTeenager(firstPairMember)
 	maximumScheduled := getLargestScheduledNumber(g)
+	timesToSearch := 0
 
-	for i, secondMemberCandidate := range g.Members {
+SearchAgain:
+	for i, memberCandidate := range g.Members {
 		// Check to make sure not scheduling the same person twice
-		if isThisMe(firstPairMember, secondMemberCandidate) {
+		if isThisMe(firstPairMember, memberCandidate) {
 			continue
 		}
 
 		// Check to make sure if first member is a teenager, we don't schedule another teenager at the same time
-		if isFirstMemberTeenager && isTeenager(secondMemberCandidate) {
+		if isFirstMemberTeenager && isTeenager(memberCandidate) {
 			continue
 		}
 
 		// Check to make sure they are not related
-		if areMembersRelated(firstPairMember, secondMemberCandidate) {
+		if areMembersRelated(firstPairMember, memberCandidate) {
 			continue
 		}
 
 		// Check if one member is a teenager, do not schedule opposite gender adult
-		if childAdultGenderCheck(firstPairMember, secondMemberCandidate) {
+		if childAdultGenderCheck(firstPairMember, memberCandidate) {
+			continue
+		}
+
+		// Check if the they are unavailable for the current date
+		if unavailableForDate(memberCandidate, currentDate) {
 			continue
 		}
 
 		// Check to see they haven't been scheduled more than anyone else
-		if fullyScheduled(secondMemberCandidate, maximumScheduled) {
+		if fullyScheduled(memberCandidate, maximumScheduled) {
 			continue
 		}
 
 		g.Members[i].TimesScheduled = g.Members[i].TimesScheduled + 1
+		fmt.Println("Scheduling ", g.Members[i].FirstName)
 
-		return secondMemberCandidate, nil
+		return memberCandidate, nil
 	}
 
-	return Member{}, fmt.Errorf("no member found")
+	if timesToSearch < 5 {
+		timesToSearch += 1
+		ResetTimesScheduled(g)
+		goto SearchAgain
+	}
+
+	return Member{}, fmt.Errorf("failed to find pair member")
 }
 
 func getLargestScheduledNumber(groupMembers *CommunityGroupMembers) int {
@@ -67,28 +84,50 @@ func getLargestScheduledNumber(groupMembers *CommunityGroupMembers) int {
 	return largestScheduledNumber
 }
 
-func isThisMe(firstMember Member, secondMemberCandidate Member) bool {
-	return (firstMember.FamilyUnit == secondMemberCandidate.FamilyUnit) && (firstMember.FirstName == secondMemberCandidate.FirstName)
+// isThisMe returns true if the member being paired is the same person as the first pair member
+func isThisMe(firstMember Member, secondMember Member) bool {
+	return (firstMember.FamilyUnit == secondMember.FamilyUnit) && (firstMember.FirstName == secondMember.FirstName)
 }
 
+// isTeenager returns true if the member is a teenager
 func isTeenager(member Member) bool {
 	return member.AgeGroup == "teenager"
 }
 
-func areMembersRelated(firstMember Member, secondMemberCandidate Member) bool {
-	return firstMember.FamilyUnit == secondMemberCandidate.FamilyUnit
+// areMembersRelated returns true if the two members are related
+func areMembersRelated(firstMember Member, secondMember Member) bool {
+	return firstMember.FamilyUnit == secondMember.FamilyUnit
 }
 
-func childAdultGenderCheck(firstMember Member, secondMemberCandidate Member) bool {
-	return (isTeenager(firstMember) || isTeenager(secondMemberCandidate)) && (firstMember.Gender != secondMemberCandidate.Gender)
+// childAdultGenderCheck returns true if one member is a teenager and the member they are being paired up to is not the same gender
+func childAdultGenderCheck(firstMember Member, secondMember Member) bool {
+	return (isTeenager(firstMember) || isTeenager(secondMember)) && (firstMember.Gender != secondMember.Gender)
 }
 
-func fullyScheduled(secondMemberCandidate Member, maximumScheduled int) bool {
-	return secondMemberCandidate.TimesScheduled >= maximumScheduled
+// fullyScheduled returns true if this candidate has already been scheduled and we haven't hit the maxium scheduled threshold
+func fullyScheduled(pairCandidate Member, maximumScheduled int) bool {
+	return pairCandidate.TimesScheduled >= maximumScheduled && maximumScheduled != 0
 }
 
+// ResetTimesScheduled resets everyone's time scheduled back to 0 to reuse them in scheduling
 func ResetTimesScheduled(groupMembers *CommunityGroupMembers) {
-	for _, member := range groupMembers.Members {
-		member.TimesScheduled = 0
+	for i := range groupMembers.Members {
+		groupMembers.Members[i].TimesScheduled = 0
 	}
+}
+
+// unavailableForDate returns true if the member is unavailable for the date being paired with
+func unavailableForDate(member Member, currentDate time.Time) bool {
+	for i := range member.DatesUnavailable {
+		if UsaDateFormat(currentDate) == (member.DatesUnavailable[i]) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// UsaDateFormat returns a date type into a standard USA date format MM/DD/YYYY
+func UsaDateFormat(date time.Time) string {
+	return date.Format("01/02/2006")
 }
