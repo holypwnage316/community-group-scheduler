@@ -45,8 +45,13 @@ SearchAgain:
 			continue
 		}
 
-		// Check if the they are unavailable for the current date
+		// Check if they are unavailable for the current date
 		if unavailableForDate(memberCandidate, currentDate) {
+			continue
+		}
+
+		// Check if the same gender
+		if isSameGender(firstPairMember, memberCandidate) {
 			continue
 		}
 
@@ -102,6 +107,11 @@ func areMembersRelated(firstMember Member, secondMember Member) bool {
 // childAdultGenderCheck returns true if one member is a teenager and the member they are being paired up to is not the same gender
 func childAdultGenderCheck(firstMember Member, secondMember Member) bool {
 	return (isTeenager(firstMember) || isTeenager(secondMember)) && (firstMember.Gender != secondMember.Gender)
+}
+
+// isSameGender returns true if the genders of the two members are not the same
+func isSameGender(firstMember Member, secondMember Member) bool {
+	return firstMember.Gender != "" && secondMember.Gender != "" && firstMember.Gender != secondMember.Gender
 }
 
 // fullyScheduled returns true if this candidate has already been scheduled and we haven't hit the maxium scheduled threshold
